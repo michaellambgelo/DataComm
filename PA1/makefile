@@ -1,2 +1,2 @@
-pa1make: server.cpp
-	g++ -o pa1make server.cpp
+server: server.cpp
+	g++ -o server server.cpp
