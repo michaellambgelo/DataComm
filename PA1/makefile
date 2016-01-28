@@ -1,3 +1,10 @@
-server: server.cpp
-	g++ -o server server.cpp
-#	g++ -o client client.cpp
+all: client server
+
+clean:
+	\rm *.o received.txt
+
+client:
+	g++ client.cpp -o client.o
+	
+server:
+	g++ server.cpp -o server.o	
