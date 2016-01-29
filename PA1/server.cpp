@@ -1,8 +1,17 @@
+/*
+server.cpp
+Author: Michael Lamb
+Date: 28.1.2016
+Description: This program is a server which
+can receive and store a file from a client on 
+a random port.
+*/
+
 //includes for general use
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string>
+#include <string.h>
 #include <unistd.h>
 #include <time.h>
 #include <ctype.h> //for toupper()
@@ -18,7 +27,7 @@ int randomPort(int n_port) //pick a random port
 {
     int val = n_port;
     srand(time(NULL));
-    while(val == n_port)
+    while(val == n_port) //ensure r_ is different from n_
         val = rand() % 65535 + 1024;
 
     return val;
@@ -32,11 +41,20 @@ void error(const char *msg) //display messages on sys call errors
 
 int main(int argc, char *argv[])
 {
-    int sockfd, newsockfd, tcpsockfd, n_port, r_port;
+    int sockfd, 
+        newsockfd, 
+        tcpsockfd, 
+        n_port, 
+        r_port;
     socklen_t clilen;
+
+    //c-string for messages, assumes [4] will be null terminator
     char buffer[5];
-    struct sockaddr_in serv_addr, cli_addr;
-    int n, o;
+
+    struct sockaddr_in  serv_addr, 
+                        cli_addr;
+    int n, 
+        o;
     FILE *filep;
 
     if (argc < 2) //check command line args, need n_port
@@ -45,7 +63,12 @@ int main(int argc, char *argv[])
         exit(1);
     }
     
-    //begin negotation stage----------------------------------------------------
+    /*************************** 
+    Begin negotation stage (TCP)
+    After setting up the sockfd,
+    send r_port for transfer
+    ****************************/
+
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) 
         error("ERROR opening socket");
@@ -85,7 +108,13 @@ int main(int argc, char *argv[])
     close(newsockfd);
     close(sockfd);
     
-    //begin UDP transfer stage--------------------------------------------------
+    /*******************************
+    Begin file transfer stage (UDP)
+    After setting up the socket,
+    write the payload received to
+    the output file
+    ********************************/
+
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) 
         error("Error: unable to open socket");
@@ -98,32 +127,11 @@ int main(int argc, char *argv[])
     if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) 
         error("Error: unable to bind()");
 
-/*    // listen() and accept()
-    listen(sockfd,5); //listen with a queue of 5
-    clilen = sizeof(cli_addr);
-    //new file descriptor for connection to client
-    newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
-    if (newsockfd < 0) 
-        error("Error: unable to accept()\n");
-
-    printf("Accepted file transfer on port %d\n",r_port);*/
-
     size_t length = strlen(buffer);
 
     filep = fopen("received.txt","a");
-/*    do
-    {
-        n = recvfrom(sockfd, buffer, 4, 0, NULL, NULL);
-        if (n < 0)
-            error("Error receiving");
 
-    }while(strcmp(buffer,"117") != 0);
-    printf("%s receieved. Accepting file transfer.\n",buffer);
-    fflush(stdout);
-    bzero(buffer, length);
-*/
-    n = 1;
-    while(n > 0)
+    do    
     {
         n = recvfrom(sockfd, buffer, 5, 0, (struct sockaddr*)&cli_addr, &clilen);
         if(n < 0)
@@ -133,7 +141,6 @@ int main(int argc, char *argv[])
 
         if(strcmp(buffer,"\0") == 0)
             n = 0;
-
 
         for(int i = 0; i < length; i++)
         {
@@ -145,7 +152,9 @@ int main(int argc, char *argv[])
         if(o < 0)
             error("Error sending ack\n");
         bzero(buffer,length);
-    }
+
+    }while(n > 0);
+
     
     fclose(filep);
     close(sockfd);
