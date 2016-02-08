@@ -118,6 +118,19 @@ int main(int argc, char *argv[])
     size_t length = strlen(buffer);
     bzero(buffer, length); //just to be safe, y'know
 
+    /************************************************
+    File transfer:
+    While there is data to be pulled from the file:
+    1. Get 4 characters from the file (fgets pulls
+       5 characters to account for a null terminator)
+    2. Send the payload to the server
+    3. Wait for the server to acknowledge payload
+    4. Print the payload to the screen
+
+    When the end-of-file is reached, send eof
+    character to the server and close the file.
+    **************************************************/
+
     while(fgets(buffer,5,filep)) //give until there's nothing left...
     {
         length = strlen(buffer); //update size of string

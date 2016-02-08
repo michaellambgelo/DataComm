@@ -5,6 +5,11 @@ Date: 28.1.2016
 Description: This program is a server which
 can receive and store a file from a client on 
 a random port.
+
+This client-server distribution is based on example
+code from http://www.linuxhowtos.org/C_C++/socket.htm
+
+Code sections obtained from this page are noted below.
 */
 
 //includes for general use
@@ -33,6 +38,10 @@ int randomPort(int n_port) //pick a random port
     return val;
 }
 
+/*
+error(msg) function obtained from 
+http://www.linuxhowtos.org/C_C++/socket.htm
+*/
 void error(const char *msg) //display messages on sys call errors
 {
     perror(msg);
@@ -48,13 +57,13 @@ int main(int argc, char *argv[])
         r_port;
     socklen_t clilen;
 
-    //c-string for messages, assumes [4] will be null terminator
+    //c-string for messages
     char buffer[5];
 
     struct sockaddr_in  serv_addr, 
                         cli_addr;
-    int n, 
-        o;
+    int n, //input from socket
+        o; //output to socket
     FILE *filep;
 
     if (argc < 2) //check command line args, need n_port
@@ -105,7 +114,9 @@ int main(int argc, char *argv[])
     r_port = randomPort(n_port); 
     //send r_port
     printf("Negotiation detected. Selected random port %d\n",ntohs(r_port));
-    n = write(newsockfd,&r_port,sizeof(r_port));
+    o = write(newsockfd,&r_port,sizeof(r_port));
+    if(o < 0)
+        error("Error sending random port");
 
     //close open sockets per PA1 instructions
     close(newsockfd);
@@ -123,10 +134,12 @@ int main(int argc, char *argv[])
         error("Error: unable to open socket");
     bzero((char *) &serv_addr, sizeof(serv_addr)); //clear variables
 
+    //update sockaddr_in struct
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = INADDR_ANY;
     serv_addr.sin_port = htons(r_port); //host to network short
 
+    //re-bind to new port
     if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) 
         error("Error: unable to bind()");
 
@@ -136,7 +149,7 @@ int main(int argc, char *argv[])
 
     do    
     {
-        n = recvfrom(sockfd, buffer, 5, 0, (struct sockaddr*)&cli_addr, &clilen);
+        n = recvfrom(sockfd, buffer, 4, 0, (struct sockaddr*)&cli_addr, &clilen);
         if(n < 0)
             error("Error receiving message\n");
         fprintf(filep,buffer);
