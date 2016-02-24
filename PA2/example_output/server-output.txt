@@ -1,0 +1,146 @@
+----------------------------------------
+
+type: 1  seqnum: 0 length: 30
+data: Wow. Never ceases to amaze me.
+
+Expecting Rn: 0
+
+Sent back the follow ACK packet:
+type: 0  seqnum: 0 length: 0
+data: WOW. NEVER CEASES TO AMAZE ME.
+
+
+----------------------------------------
+
+type: 1  seqnum: 1 length: 30
+data:  What cologne you gonna go wit
+
+Expecting Rn: 1
+
+Sent back the follow ACK packet:
+type: 0  seqnum: 1 length: 0
+data:  WHAT COLOGNE YOU GONNA GO WIT
+
+
+----------------------------------------
+
+type: 1  seqnum: 2 length: 30
+data: h? London Gentleman, or wait. 
+
+Expecting Rn: 2
+
+Sent back the follow ACK packet:
+type: 0  seqnum: 2 length: 0
+data: H? LONDON GENTLEMAN, OR WAIT. 
+
+
+----------------------------------------
+
+type: 1  seqnum: 3 length: 30
+data: No, no, no. Hold on. Blackbear
+
+Expecting Rn: 3
+
+Sent back the follow ACK packet:
+type: 0  seqnum: 3 length: 0
+data: NO, NO, NO. HOLD ON. BLACKBEAR
+
+
+----------------------------------------
+
+type: 1  seqnum: 4 length: 30
+data: d's Delight. Brian, I'm gonna 
+
+Expecting Rn: 4
+
+Sent back the follow ACK packet:
+type: 0  seqnum: 4 length: 0
+data: D'S DELIGHT. BRIAN, I'M GONNA 
+
+
+----------------------------------------
+
+type: 1  seqnum: 5 length: 30
+data: be honest with you, that smell
+
+Expecting Rn: 5
+
+Sent back the follow ACK packet:
+type: 0  seqnum: 5 length: 0
+data: BE HONEST WITH YOU, THAT SMELL
+
+
+----------------------------------------
+
+type: 1  seqnum: 6 length: 30
+data: s like pure gasoline. They've 
+
+Expecting Rn: 6
+
+Sent back the follow ACK packet:
+type: 0  seqnum: 6 length: 0
+data: S LIKE PURE GASOLINE. THEY'VE 
+
+
+----------------------------------------
+
+type: 1  seqnum: 7 length: 30
+data: done studies, you know. 60% of
+
+Expecting Rn: 7
+
+Sent back the follow ACK packet:
+type: 0  seqnum: 7 length: 0
+data: DONE STUDIES, YOU KNOW. 60% OF
+
+
+----------------------------------------
+
+type: 1  seqnum: 0 length: 30
+data:  the time, it works every time
+
+Expecting Rn: 0
+
+Sent back the follow ACK packet:
+type: 0  seqnum: 0 length: 0
+data:  THE TIME, IT WORKS EVERY TIME
+
+
+----------------------------------------
+
+type: 1  seqnum: 1 length: 30
+data: . I saw that. Brick killed a g
+
+Expecting Rn: 1
+
+Sent back the follow ACK packet:
+type: 0  seqnum: 1 length: 0
+data: . I SAW THAT. BRICK KILLED A G
+
+
+----------------------------------------
+
+type: 1  seqnum: 2 length: 28
+data: uy. Did you throw a trident?
+
+Expecting Rn: 2
+
+Sent back the follow ACK packet:
+type: 0  seqnum: 2 length: 0
+data: UY. DID YOU THROW A TRIDENT?
+
+
+----------------------------------------
+
+type: 3  seqnum: 3 length: 0
+data: EOT
+
+Expecting Rn: 3
+
+Sent back the follow ACK packet:
+type: 2  seqnum: 3 length: 0
+data: EOT
+
+
+EOT packet received in order from client. Exiting.
+
