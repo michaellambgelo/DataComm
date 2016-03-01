@@ -33,7 +33,7 @@ int randomPort(int n_port) //pick a random port
     int val = n_port;
     srand(time(NULL));
     while(val == n_port) //ensure r_ is different from n_
-        val = rand() % 65535 + 1024;
+        val = rand() % (65535 - 1024) + 1024;
 
     return val;
 }
@@ -52,7 +52,6 @@ int main(int argc, char *argv[])
 {
     int sockfd, 
         newsockfd, 
-        tcpsockfd, 
         n_port, 
         r_port;
     socklen_t clilen;
@@ -113,7 +112,7 @@ int main(int argc, char *argv[])
 
     r_port = randomPort(n_port); 
     //send r_port
-    printf("Negotiation detected. Selected random port %d\n",ntohs(r_port));
+    printf("Negotiation detected. Selected random port %d\n",r_port);
     o = write(newsockfd,&r_port,sizeof(r_port));
     if(o < 0)
         error("Error sending random port");
@@ -147,17 +146,22 @@ int main(int argc, char *argv[])
 
     filep = fopen("received.txt","a");
 
+    bzero(buffer,sizeof(buffer));
+
     do    
     {
         n = recvfrom(sockfd, buffer, 4, 0, (struct sockaddr*)&cli_addr, &clilen);
         if(n < 0)
             error("Error receiving message\n");
-        fprintf(filep,buffer);
-        length = strlen(buffer); //update string length
 
         if(strcmp(buffer,"\0") == 0) //is payload EOF?
+        {
             n = 0;
+        }
 
+        fprintf(filep,buffer);
+        length = strlen(buffer); //update string length
+        
         //ack is capitalized version of payload
         for(int i = 0; i < length; i++)
         {

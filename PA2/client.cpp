@@ -35,26 +35,62 @@ int main(int argc, char *argv[])
 {
     if (argc < 5) //check command line args
     {
-        fprintf(stderr,"USAGE: %s, ",argv[0]);
-        printf("emulator name, ");
-        printf("emulator send port, ");
-        printf("emulator receive port, ");
-        printf("filename\n");
-       exit(0);
+        fprintf(stderr,"USAGE: %s, ",argv[0]);  //0
+        printf("emulator name, ");              //1
+        printf("emulator send port, ");         //2
+        printf("emulator receive port, ");      //3
+        printf("filename\n");                   //4
+        exit(0);
     }
 
-    int sockfd, n;
-    struct sockaddr_in serv_addr;
+    /*      set up variables      */
+    int sendSock, recvSock, n;
+    struct sockaddr_in send_serv_addr, recv_serv_addr;
     struct hostent *server;
 
-    FILE *filep; //command line argument
+    FILE *filep; //given by command line argument
     FILE *seqnum; //"seqnum.log"
     FILE *ack; //"ack.log"
 
+    Packet pack_;
+
+    /*      parse command line arguments     */
     char *emulatorName = argv[1];
-    int sendToEmulator = atoi(argv[2]);
-    int recvFromEmulator = atoi(argv[3]);
+    int sendToEmulatorPort = atoi(argv[2]);
+    int recvFromEmulatorPort = atoi(argv[3]);
     filep = fopen(argv[4],"r");
+
+    /*      set up sockets and structs       */
+
+    //sending socket
+    sendSock = socket(AF_INET, SOCK_DGRAM, 0); 
+    if (sendSock < 0) 
+        error("Error opening sendSock\n");
+
+    //receiving socket
+    recvSock = socket(AF_INET,SOCK_DGRAM, 0);
+    if (recvSock < 0)
+        error("Error opening recvSock")
+    
+    //get server (emulator) address
+    server = gethostbyname(argv[1]);
+    if (server == NULL) 
+    {
+        fprintf(stderr,"Error, no such host\n");
+        exit(0);
+    }
+
+    //set up sockaddr_in for SENDING
+    bzero((char *) &send_serv_addr, sizeof(send_serv_addr)); //clear variables
+    send_serv_addr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, (char *)&send_serv_addr.sin_addr.s_addr, server->h_length);
+    send_serv_addr.sin_port = htons(sendToEmulatorPort); //send port
+
+    //set up sockaddr_in for RECEIVING
+    bzero((char *) &recv_serv_addr, sizeof(recv_serv_addr)); //clear variables
+    recv_serv_addr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, (char *)&recv_serv_addr.sin_addr.s_addr, server->h_length);
+    recv_serv_addr.sin_port = htons(recvFromEmulatorPort); //send port
 
     // /*************************** 
     // Begin negotation stage (TCP)

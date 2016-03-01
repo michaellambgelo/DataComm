@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
     if(n < 0)
         error("Error getting transfer port\n");
     
-    printf("Communicating with server. Transferring file on port %d\n",ntohs(r_port));
+    printf("Communicating with server. Transferring file on port %d\n",r_port);
    
     //close open socket per PA1 instructions
     close(sockfd);

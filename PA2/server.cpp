@@ -26,6 +26,9 @@ Code sections obtained from this page are noted below.
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+//other includes
+#include "packet.h"
+
 using namespace std;
 
 int randomPort(int n_port) //pick a random port
@@ -50,27 +53,64 @@ void error(const char *msg) //display messages on sys call errors
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2) //check command line args
+    if (argc < 5) //check command line args
     {
-        fprintf(stderr,"Error, no negotiation port provided\n");
-        exit(1);
+        fprintf(stderr,"USAGE: %s, ",argv[0]);  //0
+        printf("emulator name, ");              //1
+        printf("emulator receive port, ");      //2
+        printf("emulator send port, ");         //3
+        printf("filename\n");                   //4
+       exit(0);
     }
 
-    int sockfd, 
-        newsockfd, 
-        n_port, 
-        r_port;
+    /*      set up variables      */
+    int sendSock, recvSock, n;
     socklen_t clilen;
 
-    //c-string for messages
-    char buffer[5];
+    struct sockaddr_in  send_cli_addr, 
+                        recv_cli_addr;
+    FILE *filep; //command line argument, write received payloads
+    FILE *arrival; //"arrival.log" - log sequence number of packets
 
-    struct sockaddr_in  serv_addr, 
-                        cli_addr;
-    int n, //input from socket
-        o; //output to socket
-    FILE *filep;
-    
+    packet pack_;
+
+    /*      parse command line arguments     */
+    char *emulatorName = argv[1];
+    int recvFromEmulatorPort = atoi(argv[2]);
+    int sendToEmulatorPort = atoi(argv[3]);
+    filep = fopen(argv[4],"r");
+
+    /*      set up sockets and structs       */
+
+    //sending socket
+    sendSock = socket(AF_INET, SOCK_DGRAM, 0); 
+    if (sendSock < 0) 
+        error("Error opening sendSock\n");
+
+    //receiving socket
+    recvSock = socket(AF_INET,SOCK_DGRAM, 0);
+    if (recvSock < 0)
+        error("Error opening recvSock")
+
+    //set up sockaddr_in for SENDING
+    bzero((char *) &send_cli_addr, sizeof(send_cli_addr)); //clear variables
+    send_cli_addr.sin_family = AF_INET;
+    send_cli_addr.sin_addr.s_addr = INADDR_ANY;
+    send_cli_addr.sin_port = htons(sendToEmulatorPort);
+
+    //set up sockaddr_in for RECEIVING
+    bzero((char *) &recv_cli_addr, sizeof(recv_cli_addr)); //clear variables
+    recv_cli_addr.sin_family = AF_INET;
+    send_cli_addr.sin_addr.s_addr = INADDR_ANY;
+    recv_cli_addr.sin_port = htons(recvFromEmulatorPort); //send port
+
+    //bind socks to ports
+    if (bind(sendSock, (struct sockaddr *) &send_cli_addr, sizeof(send_cli_addr)) < 0) 
+        error("Error: unable to bind() sendSock()");
+    if (bind(recvSock, (struct sockaddr *) &recv_cli_addr, sizeof(recv_cli_addr)) < 0)
+        error("Error: unable to bind() recvSock");
+
+
     // /*************************** 
     // Begin negotation stage (TCP)
     // After setting up the sockfd,
