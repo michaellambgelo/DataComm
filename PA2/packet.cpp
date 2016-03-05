@@ -10,6 +10,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <iostream>
+#include <stdio.h>
 
 using namespace std;  // using standard namespace
 
@@ -46,9 +47,9 @@ char * packet::getData(){
 void packet::printContents(){
 	cout << "type: " << type << "  seqnum: " << seqnum << " length: " << length << endl;
 	if(data != NULL)
-		cout << "data: " << data << endl << endl;
+		cout << "data: " << data << endl;
 	else
-		cout << "data: null" << endl << endl; 
+		cout << "data: null" << endl; 
 }
 
 // This function serializes the data such that type, seqnum, length, and data values are placed 
@@ -64,7 +65,7 @@ void packet::deserialize(char * spacket){
 	char * itr;
 	itr = strtok(spacket," ");
 	char * null_end;
-		
+	
 	this->type = strtol(itr, &null_end, 10);
 	
 	itr = strtok(NULL, " ");
@@ -77,7 +78,7 @@ void packet::deserialize(char * spacket){
 		data = NULL;
 	}
 	else{
-		itr = strtok(NULL, "");	
+		itr = strtok(NULL, "");
 		for(int i=0; i < this->length; i++){ // copy data into char array
 			this->data[i] = itr[i];
 		}

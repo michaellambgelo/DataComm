@@ -14,20 +14,20 @@ Code sections obtained from this page are noted below.
 
 //includes for general use
 #include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <time.h>
-#include <ctype.h> //for toupper()
 
 //includes for networking
-#include <sys/types.h> 
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <netinet/in.h>
 
 //other includes
 #include "packet.h"
+
+//packet type constants
+#define PACKET_ACK 0
+#define PACKET_DATA 1
+#define PACKET_EOT_SERV2CLI 2
+#define PACKET_EOT_CLI2SERV 3
 
 using namespace std;
 
@@ -60,25 +60,37 @@ int main(int argc, char *argv[])
         printf("emulator receive port, ");      //2
         printf("emulator send port, ");         //3
         printf("filename\n");                   //4
-       exit(0);
+        exit(0);
     }
 
     /*      set up variables      */
     int sendSock, recvSock, n;
-    socklen_t clilen;
+    socklen_t recvlen;
 
     struct sockaddr_in  send_cli_addr, 
                         recv_cli_addr;
-    FILE *filep; //command line argument, write received payloads
-    FILE *arrival; //"arrival.log" - log sequence number of packets
+    char buffer[32];
 
-    packet pack_;
+    FILE *filep;        //command line argument, write received payloads
+    FILE *arrival_log;  //"arrival.log" - log sequence number of packets
+
+    /*          packet variables             */
+    char serialPacket[256];
+    int type;
+    int seqnum;
+    int length;
+    char data[32];
+    packet *pack = new packet(0,0,0,data);
+
 
     /*      parse command line arguments     */
     char *emulatorName = argv[1];
     int recvFromEmulatorPort = atoi(argv[2]);
     int sendToEmulatorPort = atoi(argv[3]);
-    filep = fopen(argv[4],"r");
+    
+    /*          setup file logging          */
+    filep = fopen(argv[4],"w");
+    arrival_log = fopen("arrival.log","w");
 
     /*      set up sockets and structs       */
 
@@ -90,134 +102,76 @@ int main(int argc, char *argv[])
     //receiving socket
     recvSock = socket(AF_INET,SOCK_DGRAM, 0);
     if (recvSock < 0)
-        error("Error opening recvSock")
+        error("Error opening recvSock");
 
     //set up sockaddr_in for SENDING
     bzero((char *) &send_cli_addr, sizeof(send_cli_addr)); //clear variables
     send_cli_addr.sin_family = AF_INET;
     send_cli_addr.sin_addr.s_addr = INADDR_ANY;
-    send_cli_addr.sin_port = htons(sendToEmulatorPort);
+    send_cli_addr.sin_port = htons(sendToEmulatorPort); //send port
 
     //set up sockaddr_in for RECEIVING
     bzero((char *) &recv_cli_addr, sizeof(recv_cli_addr)); //clear variables
     recv_cli_addr.sin_family = AF_INET;
-    send_cli_addr.sin_addr.s_addr = INADDR_ANY;
-    recv_cli_addr.sin_port = htons(recvFromEmulatorPort); //send port
+    recv_cli_addr.sin_addr.s_addr = INADDR_ANY;
+    recv_cli_addr.sin_port = htons(recvFromEmulatorPort); //recv port
 
     //bind socks to ports
-    if (bind(sendSock, (struct sockaddr *) &send_cli_addr, sizeof(send_cli_addr)) < 0) 
-        error("Error: unable to bind() sendSock()");
+    // if (bind(sendSock, (struct sockaddr *) &send_cli_addr, sizeof(send_cli_addr)) < 0)
+    //     error("Error: unable to bind() sendSock()");
+    // printf("Ready to send on port %d\n",sendToEmulatorPort);
     if (bind(recvSock, (struct sockaddr *) &recv_cli_addr, sizeof(recv_cli_addr)) < 0)
         error("Error: unable to bind() recvSock");
+    printf("Ready to receive on port %d\n",recvFromEmulatorPort);
 
+    //clear c-strings and setup packet variables
+    bzero(buffer, sizeof(buffer));
+    bzero(data, sizeof(data));
+    bzero(serialPacket, sizeof(serialPacket));
+    seqnum = 0;
 
-    // /*************************** 
-    // Begin negotation stage (TCP)
-    // After setting up the sockfd,
-    // send r_port for transfer
-    // ****************************/
+    do
+    {
+        n = recvfrom(recvSock, serialPacket, sizeof(serialPacket), 0, NULL, NULL);
+        if(n < 0) 
+            error("Error receiving packet"); 
+        else
+            cout << "Packet received!" << endl;
 
-    // sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    // if (sockfd < 0) 
-    //     error("Error opening socket");
-    // bzero((char *) &serv_addr, sizeof(serv_addr)); //clear variables
+        pack->deserialize(serialPacket);
 
-    // n_port = atoi(argv[1]); //convert char*[] arg to int
-    // serv_addr.sin_family = AF_INET;
-    // serv_addr.sin_addr.s_addr = INADDR_ANY;
-    // serv_addr.sin_port = htons(n_port); //host to network short
+        type = pack->getType();
+        seqnum = pack->getSeqNum();
 
-    // if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) 
-    //     error("Error: unable to bind()");
+        if(type == PACKET_DATA)
+        {
+            pack->printContents();
+            delete pack;
+            pack = new packet(PACKET_ACK, seqnum, 0, NULL);
+            pack->serialize(serialPacket);
+        }
+        else if(type == PACKET_EOT_CLI2SERV)
+        {
 
-    // printf("Waiting for connections...\n");
+        }
 
-    // // listen() and accept()
-    // listen(sockfd,5); //listen with a queue of 5
-    // clilen = sizeof(cli_addr);
-    // //new file descriptor for connection to client
-    // newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
-    // if (newsockfd < 0) 
-    //     error("Error: unable to accept()");
-    
-    // //wait for client to request r_port
-    // n = read(newsockfd,buffer,sizeof(buffer)); 
-    // if(n < 0)
-    //     error("Error receiving message from client");
-    // if(strcmp(buffer, "117") != 0)
-    // {
-    //     printf("Invalid request ID: %s",buffer);
-    //     exit(4);
-    // }
+        n = sendto(sendSock, serialPacket, strlen(serialPacket), 0, (struct sockaddr*)&send_cli_addr, sizeof(send_cli_addr));
+        if(n < 0)
+            error("Error sending packet");
+        else
+            cout << "Packet sent!" << endl;
+        pack->printContents();
 
-    // r_port = randomPort(n_port); 
-    // //send r_port
-    // printf("Negotiation detected. Selected random port %d\n",r_port);
-    // o = write(newsockfd,&r_port,sizeof(r_port));
-    // if(o < 0)
-    //     error("Error sending random port");
+        bzero(serialPacket, sizeof(serialPacket));
+        delete pack;
+        pack = new packet(0,0,0,data);
 
-    // //close open sockets per PA1 instructions
-    // close(newsockfd);
-    // close(sockfd);
-    
-    // /*******************************
-    // Begin file transfer stage (UDP)
-    // After setting up the socket,
-    // write the payload received to
-    // the output file
-    // ********************************/
+    }while(type != PACKET_EOT_CLI2SERV);
 
-    // sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-    // if (sockfd < 0) 
-    //     error("Error: unable to open socket");
-    // bzero((char *) &serv_addr, sizeof(serv_addr)); //clear variables
-
-    // //update sockaddr_in struct
-    // serv_addr.sin_family = AF_INET;
-    // serv_addr.sin_addr.s_addr = INADDR_ANY;
-    // serv_addr.sin_port = htons(r_port); //host to network short
-
-    // //re-bind to new port
-    // if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) 
-    //     error("Error: unable to bind()");
-
-    // size_t length = strlen(buffer); //used to keep track of string
-
-    // filep = fopen("received.txt","a");
-
-    // bzero(buffer,sizeof(buffer));
-
-    // do    
-    // {
-    //     n = recvfrom(sockfd, buffer, 4, 0, (struct sockaddr*)&cli_addr, &clilen);
-    //     if(n < 0)
-    //         error("Error receiving message\n");
-
-    //     if(strcmp(buffer,"\0") == 0) //is payload EOF?
-    //     {
-    //         n = 0;
-    //     }
-
-    //     fprintf(filep,buffer);
-    //     length = strlen(buffer); //update string length
-        
-    //     //ack is capitalized version of payload
-    //     for(int i = 0; i < length; i++)
-    //     {
-    //         buffer[i] = toupper(buffer[i]);
-    //     }
-
-    //     o = sendto(sockfd, buffer, length, 0, (struct sockaddr*)&cli_addr, clilen);
-    //     if(o < 0)
-    //         error("Error sending ack\n");
-    //     bzero(buffer,length);
-
-    // }while(n > 0);
-
-    // //cleanup
-    // fclose(filep);
-    // close(sockfd);
-
+    //cleanup
+    fclose(filep);
+    fclose(arrival_log);
+    close(sendSock);
+    close(recvSock);
     return 0; 
 }
