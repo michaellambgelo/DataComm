@@ -151,6 +151,8 @@ int main(int argc, char *argv[])
             else
                 cout << "Packet sent!" << endl;
             pack->printContents();
+            fprintf(seqnum_log,"%d\n", seqnum);
+            seqnum = (seqnum + 1) % 8;
 
             bzero(serialPacket, sizeof(serialPacket));
 
@@ -162,12 +164,31 @@ int main(int argc, char *argv[])
                 cout << "Packet received!" << endl;
 
             pack->deserialize(serialPacket);
+            fprintf(ack_log, "%d\n", pack->getSeqNum());
             pack->printContents();
         }
 
         bzero(buffer, sizeof(buffer));
         bzero(serialPacket, sizeof(serialPacket));
     }
+
+    delete pack;
+    pack = new packet(PACKET_EOT_CLI2SERV,seqnum,0,NULL);
+    pack->serialize(serialPacket);
+
+    n = sendto(sendSock, serialPacket, sizeof(serialPacket), 0, (struct sockaddr*)&send_serv_addr, sizeof(send_serv_addr));
+    if(n < 0)
+        error("Error sending EOT");
+    else
+        cout << "Waiting for EOT ACK" << endl;
+
+    bzero(serialPacket, sizeof(serialPacket));
+
+    n = recvfrom(recvSock, serialPacket, sizeof(serialPacket), 0, NULL, NULL);
+    if(n < 0)
+        error("Error receiving packet");
+    else
+        cout << "ACK received!" << endl;
 
     //cleanup
     fclose(filep);

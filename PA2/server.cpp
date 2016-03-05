@@ -146,13 +146,16 @@ int main(int argc, char *argv[])
         if(type == PACKET_DATA)
         {
             pack->printContents();
+            fprintf(filep,data);
             delete pack;
             pack = new packet(PACKET_ACK, seqnum, 0, NULL);
             pack->serialize(serialPacket);
         }
         else if(type == PACKET_EOT_CLI2SERV)
         {
-
+            delete pack;
+            pack = new packet(PACKET_EOT_SERV2CLI, seqnum, 0, NULL);
+            pack->serialize(serialPacket);
         }
 
         n = sendto(sendSock, serialPacket, strlen(serialPacket), 0, (struct sockaddr*)&send_cli_addr, sizeof(send_cli_addr));
@@ -168,6 +171,7 @@ int main(int argc, char *argv[])
 
     }while(type != PACKET_EOT_CLI2SERV);
 
+    cout << "End of transmission" << endl;
     //cleanup
     fclose(filep);
     fclose(arrival_log);
