@@ -14,6 +14,12 @@ Code sections obtained from this page are noted below.
 
 //includes for general use
 #include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <time.h>
+#include <ctype.h> //for toupper()
 
 //includes for networking
 #include <sys/socket.h>
