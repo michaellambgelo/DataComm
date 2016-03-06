@@ -139,7 +139,7 @@ int main(int argc, char *argv[])
 
     while(pack->getType() != PACKET_EOT_SERV2CLI)
     {
-        fgets(buffer, 31, file);
+        fgets(buffer, 31, filep);
         
         //prepare packet if there's data
         delete pack;
