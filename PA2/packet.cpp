@@ -49,7 +49,7 @@ void packet::printContents(){
 	if(data != NULL)
 		cout << "data: " << data << endl;
 	else
-		cout << "data: null" << endl; 
+		cout << "data: null" << endl << endl; 
 }
 
 // This function serializes the data such that type, seqnum, length, and data values are placed 

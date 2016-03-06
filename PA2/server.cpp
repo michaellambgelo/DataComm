@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
         if(n < 0) 
             error("Error receiving packet"); 
         else
-            cout << "Packet received!" << endl;
+            cout << "Packet received:" << endl;
 
         pack->deserialize(serialPacket);
 
@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
         if(n < 0)
             error("Error sending packet");
         else
-            cout << "Packet sent!" << endl;
+            cout << "Packet sent:" << endl;
         pack->printContents();
 
         bzero(serialPacket, sizeof(serialPacket));

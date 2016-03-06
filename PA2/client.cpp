@@ -137,36 +137,45 @@ int main(int argc, char *argv[])
 
     printf("Preparing packets to send...\n");
 
-    while(fgets(buffer, 31, filep))
+    while(pack->getType() != PACKET_EOT_SERV2CLI)
     {
+        fgets(buffer, 31, file);
+        
+        //prepare packet if there's data
+        delete pack;
         if(strlen(buffer) > 0)
         {
-            delete pack;
             pack = new packet(PACKET_DATA, seqnum, sizeof(buffer), buffer);
-            pack->serialize(serialPacket);
-
-            n = sendto(sendSock, serialPacket, sizeof(serialPacket), 0, (struct sockaddr*)&send_serv_addr, sizeof(send_serv_addr));
-            if(n < 0)
-                error("Error sending packet");
-            else
-                cout << "Packet sent!" << endl;
-            pack->printContents();
-            fprintf(seqnum_log,"%d\n", seqnum);
-            seqnum = (seqnum + 1) % 8;
-
-            bzero(serialPacket, sizeof(serialPacket));
-
-            cout << "Waiting to recv" << endl;
-            n = recvfrom(recvSock, serialPacket, sizeof(serialPacket), 0, NULL, NULL);
-            if(n < 0)
-                error("Error receiving packet");
-            else
-                cout << "Packet received!" << endl;
-
-            pack->deserialize(serialPacket);
-            fprintf(ack_log, "%d\n", pack->getSeqNum());
-            pack->printContents();
         }
+        else
+        {
+            pack = new packet(PACKET_EOT_CLI2SERV, seqnum, 0, NULL);
+        }
+        pack->serialize(serialPacket);
+
+        //send packet
+        n = sendto(sendSock, serialPacket, sizeof(serialPacket), 0, (struct sockaddr*)&send_serv_addr, sizeof(send_serv_addr));
+        if(n < 0)
+            error("Error sending packet");
+        else
+            cout << "Packet sent:" << endl;
+        pack->printContents();
+        fprintf(seqnum_log,"%d\n", seqnum);
+        seqnum = (seqnum + 1) % 8;
+
+        bzero(serialPacket, sizeof(serialPacket));
+
+        //wait for ACK
+        n = recvfrom(recvSock, serialPacket, sizeof(serialPacket), 0, NULL, NULL);
+        if(n < 0)
+            error("Error receiving packet");
+        else
+            cout << "Packet received:" << endl;
+
+        pack->deserialize(serialPacket);
+        fprintf(ack_log, "%d\n", pack->getSeqNum());
+        pack->printContents();
+
 
         bzero(buffer, sizeof(buffer));
         bzero(serialPacket, sizeof(serialPacket));
