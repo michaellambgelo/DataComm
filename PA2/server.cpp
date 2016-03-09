@@ -1,5 +1,4 @@
 /*
-I'm just playing with github ignore meeeeeeeee
 server.cpp
 Author: Michael Lamb
 Date: 28.1.2016
