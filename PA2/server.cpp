@@ -19,7 +19,7 @@ Code sections obtained from this page are noted below.
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
-#include <ctype.h> //for toupper()
+#include <ctype.h>
 
 //includes for networking
 #include <sys/socket.h>
@@ -83,7 +83,9 @@ int main(int argc, char *argv[])
     /*          packet variables             */
     char serialPacket[256];
     int type;
-    int seqnum;
+    int packet_seqnum;
+    int expected_seqnum;
+    int last_seqnum;
     int length;
     char data[32];
     packet *pack = new packet(0,0,0,data);
@@ -123,18 +125,18 @@ int main(int argc, char *argv[])
     recv_cli_addr.sin_port = htons(recvFromEmulatorPort); //recv port
 
     //bind socks to ports
-    // if (bind(sendSock, (struct sockaddr *) &send_cli_addr, sizeof(send_cli_addr)) < 0)
-    //     error("Error: unable to bind() sendSock()");
-    // printf("Ready to send on port %d\n",sendToEmulatorPort);
     if (bind(recvSock, (struct sockaddr *) &recv_cli_addr, sizeof(recv_cli_addr)) < 0)
         error("Error: unable to bind() recvSock");
-    printf("Ready to receive on port %d\n",recvFromEmulatorPort);
+        printf("Ready to receive on port %d\n",recvFromEmulatorPort);
 
     //clear c-strings and setup packet variables
     bzero(buffer, sizeof(buffer));
     bzero(data, sizeof(data));
     bzero(serialPacket, sizeof(serialPacket));
-    seqnum = 0;
+    packet_seqnum = 0;
+    expected_seqnum = 0;
+    last_seqnum = 0;
+
 
     do
     {
@@ -147,20 +149,41 @@ int main(int argc, char *argv[])
         pack->deserialize(serialPacket);
 
         type = pack->getType();
-        seqnum = pack->getSeqNum();
+        packet_seqnum = pack->getSeqNum();
 
         if(type == PACKET_DATA)
         {
-            pack->printContents();
-            fprintf(filep,data);
-            delete pack;
-            pack = new packet(PACKET_ACK, seqnum, 0, NULL);
-            pack->serialize(serialPacket);
+            //Hannah started typing here
+            //If the seqnum is right, send an ack with that seqnum. 
+            //If the expected seqnum reaches 8, reset to 0.
+            if (packet_seqnum == expected_seqnum)
+            {
+                cout << "Received: " << packet_seqnum<<endl;
+                last_seqnum = packet_seqnum;
+                pack->printContents();
+                fprintf(filep,data);
+                delete pack;
+                pack = new packet(PACKET_ACK, expected_seqnum++, 0, NULL);
+                pack->serialize(serialPacket);
+                //If it get's to 8, make it expect 0
+                if (expected_seqnum == 8)
+                {
+                    cout << "Expecting 8...now expecting 0."<< endl;
+                    expected_seqnum = 0;
+                }
+            }
+            else
+            {   
+                cout << "Unexpected sequence number. Resending ACK for: " << last_seqnum << endl;
+                cout << "Expecting packet: " << expected_seqnum << endl; 
+                delete pack;
+                pack = new packet(PACKET_ACK, last_seqnum, 0, NULL);
+                pack->serialize(serialPacket);
         }
         else if(type == PACKET_EOT_CLI2SERV)
         {
             delete pack;
-            pack = new packet(PACKET_EOT_SERV2CLI, seqnum, 0, NULL);
+            pack = new packet(PACKET_EOT_SERV2CLI, packet_seqnum, 0, NULL);
             pack->serialize(serialPacket);
         }
 
