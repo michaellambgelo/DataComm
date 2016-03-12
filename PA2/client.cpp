@@ -1,5 +1,6 @@
 /*
 client.cpp
+LOOK AT ALL THIS RANDOM SHIT
 Author: Michael Lamb
 Date: 28.1.2016
 Description: This program is a client which
@@ -14,6 +15,7 @@ a random port on which to receive the file.
 #include <unistd.h>
 #include <string.h>
 #include <time.h> //for timeouts
+#include <errno.h>
 
 //includes for networking
 #include <sys/types.h>
@@ -62,7 +64,7 @@ int main(int argc, char *argv[])
     FILE *seqnum_log;   //"seqnum.log" - log the packet sequence number
     FILE *ack_log;      //"ack.log" - log the received ACK sequence number
     
-    clock_t timer;
+    //clock_t timer;
     /* 
         To get time, set timer
             timer = clock();
@@ -74,7 +76,7 @@ int main(int argc, char *argv[])
 
     /*          packet variables             */
     packet *pack = new packet(0,0,0,buffer);
-    char serialPacket[256];
+    char serialPacket[48];
     int seqnum;
     int length;
 
@@ -83,6 +85,12 @@ int main(int argc, char *argv[])
     int sendToEmulatorPort = atoi(argv[2]);
     int recvFromEmulatorPort = atoi(argv[3]);
     
+    /*          GBN functionality vars      */
+    int window_size = 8;
+    char packArr[window_size+1][256];
+    int max_seqnum;
+    int base_seqnum;
+
     /*          setup file logging          */
     filep = fopen(argv[4],"r");
     seqnum_log = fopen("seqnum.log","w");
@@ -95,11 +103,18 @@ int main(int argc, char *argv[])
     if (sendSock < 0) 
         error("Error opening sendSock\n");
 
+    //set recvSock options
+    struct timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 800000; //800 ms
+    
     //receiving socket
     recvSock = socket(AF_INET,SOCK_DGRAM, 0);
     if (recvSock < 0)
         error("Error opening recvSock");
     
+    if (setsockopt(recvSock, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
+        error("Error setting socket option");
     //get server (emulator) address
     server = gethostbyname(emulatorName);
     if (server == NULL) 
@@ -134,45 +149,88 @@ int main(int argc, char *argv[])
     bzero(buffer, sizeof(buffer));
     bzero(serialPacket, sizeof(serialPacket));
     seqnum = 0;
+    base_seqnum = 0;
+    window_size = 8;
+    max_seqnum = window_size - 1;
 
     printf("Preparing packets to send...\n");
 
     while(pack->getType() != PACKET_EOT_SERV2CLI)
     {
-        fgets(buffer, 31, filep);
-        
-        //prepare packet if there's data
-        delete pack;
-        if(strlen(buffer) > 0)
-        {
-            pack = new packet(PACKET_DATA, seqnum, sizeof(buffer), buffer);
-        }
-        else
-        {
-            pack = new packet(PACKET_EOT_CLI2SERV, seqnum, 0, NULL);
-        }
-        pack->serialize(serialPacket);
+        while (fgets(buffer, 31, filep) && (seqnum%8) <= window_size){
+   
+            //prepare packet if there's data
+            delete pack;
+            if(strlen(buffer) > 0)
+            {
+                pack = new packet(PACKET_DATA, seqnum%8, sizeof(buffer), buffer);
 
-        //send packet
-        n = sendto(sendSock, serialPacket, sizeof(serialPacket), 0, (struct sockaddr*)&send_serv_addr, sizeof(send_serv_addr));
-        if(n < 0)
-            error("Error sending packet");
-        else
-            cout << "Packet sent:" << endl;
-        pack->printContents();
-        fprintf(seqnum_log,"%d\n", seqnum);
-        seqnum = (seqnum + 1) % 8;
+            }
+            else
+            {
+                pack = new packet(PACKET_EOT_CLI2SERV, seqnum%8, 0, NULL);
+            }
+            cout<<"Populating packArr..."<<endl;
+            bzero(packArr[seqnum%8], sizeof(packArr[seqnum%8]));
+            pack->serialize(packArr[seqnum%8]);
+            //send packet
+            n = sendto(sendSock, packArr[seqnum%8], sizeof(packArr[seqnum%8]), 0, (struct sockaddr*)&send_serv_addr, sizeof(send_serv_addr));
+            if(n < 0)
+                error("Error sending packet");
+            else
+                cout << "Packet sent:" << endl;
+            pack->printContents();
+            fprintf(seqnum_log,"%d\n", seqnum%8);
+            seqnum++;
+        }
 
         bzero(serialPacket, sizeof(serialPacket));
 
-        //wait for ACK
+        //wait for Ack
+        cout<<"Waiting to receive..."<<endl<<endl; 
         n = recvfrom(recvSock, serialPacket, sizeof(serialPacket), 0, NULL, NULL);
+        if (errno == EAGAIN){
+            for (int i = base_seqnum; i != seqnum%8; ((i+1)%8))
+            {
+                cout<<"Resending packet: "<< i << endl;
+                n = sendto(sendSock, packArr[i], sizeof(packArr[i]), 0, (struct sockaddr*)&send_serv_addr, sizeof(send_serv_addr));
+                if(n < 0)
+                    error("Error sending packet");
+                else
+                    cout << "Packet resent:" << endl;
+                pack->printContents();
+                fprintf(seqnum_log,"%d\n", seqnum%8);
+            }
+        }
+
         if(n < 0)
             error("Error receiving packet");
         else
             cout << "Packet received:" << endl;
 
         pack->deserialize(serialPacket);
+        
+        //Hannah started shit right here
+        if (pack->getSeqNum() == base_seqnum)
+        {
+            base_seqnum++;
+        } 
+        else if (pack->getSeqNum() < base_seqnum)
+        {
+            for (int i = base_seqnum; i != seqnum%8; i++)
+            {
+                cout<<"Resending packet: "<< i << endl;
+                n = sendto(sendSock, packArr[i], sizeof(packArr[i]), 0, (struct sockaddr*)&send_serv_addr, sizeof(send_serv_addr));
+                if(n < 0)
+                    error("Error sending packet");
+                else
+                    cout << "Packet resent:" << endl;
+                pack->printContents();
+                fprintf(seqnum_log,"%d\n", seqnum%8);
+                seqnum = (seqnum + 1) % 8;
+
+            }
+        }
         fprintf(ack_log, "%d\n", pack->getSeqNum());
         pack->printContents();
 

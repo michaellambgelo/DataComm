@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
 
         type = pack->getType();
         packet_seqnum = pack->getSeqNum();
-
+        fprintf(arrival_log,"Sequence Number: %d Type: %d", packet_seqnum, type);
         if(type == PACKET_DATA)
         {
             //Hannah started typing here
@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
             //If the expected seqnum reaches 8, reset to 0.
             if (packet_seqnum == expected_seqnum)
             {
-                cout << "Received: " << packet_seqnum<<endl;
+                cout << "Received: " << packet_seqnum <<endl;
                 last_seqnum = packet_seqnum;
                 pack->printContents();
                 fprintf(filep,data);
@@ -179,6 +179,7 @@ int main(int argc, char *argv[])
                 delete pack;
                 pack = new packet(PACKET_ACK, last_seqnum, 0, NULL);
                 pack->serialize(serialPacket);
+            }
         }
         else if(type == PACKET_EOT_CLI2SERV)
         {
