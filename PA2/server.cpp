@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
     bzero(buffer, sizeof(buffer));
     bzero(data, sizeof(data));
     bzero(serialPacket, sizeof(serialPacket));
-    packet_seqnum = 0;
+    packet_seqnum;
     expected_seqnum = 0;
     last_seqnum = 0;
 
@@ -147,30 +147,24 @@ int main(int argc, char *argv[])
             cout << "Packet received:" << endl;
 
         pack->deserialize(serialPacket);
+        pack->printContents();
 
         type = pack->getType();
         packet_seqnum = pack->getSeqNum();
-        fprintf(arrival_log,"Sequence Number: %d Type: %d", packet_seqnum, type);
+
         if(type == PACKET_DATA)
         {
-            //Hannah started typing here
             //If the seqnum is right, send an ack with that seqnum. 
             //If the expected seqnum reaches 8, reset to 0.
             if (packet_seqnum == expected_seqnum)
             {
-                cout << "Received: " << packet_seqnum <<endl;
                 last_seqnum = packet_seqnum;
-                pack->printContents();
                 fprintf(filep,data);
                 delete pack;
-                pack = new packet(PACKET_ACK, expected_seqnum++, 0, NULL);
+                pack = new packet(PACKET_ACK, expected_seqnum, 0, NULL);
                 pack->serialize(serialPacket);
-                //If it get's to 8, make it expect 0
-                if (expected_seqnum == 8)
-                {
-                    cout << "Expecting 8...now expecting 0."<< endl;
-                    expected_seqnum = 0;
-                }
+                //If it gets to 8, make it expect 0
+                expected_seqnum = (expected_seqnum + 1) % 8;
             }
             else
             {   
@@ -183,6 +177,7 @@ int main(int argc, char *argv[])
         }
         else if(type == PACKET_EOT_CLI2SERV)
         {
+            cout << "SENDING EOT MUTHAFUCKA" << endl;
             delete pack;
             pack = new packet(PACKET_EOT_SERV2CLI, packet_seqnum, 0, NULL);
             pack->serialize(serialPacket);
@@ -192,8 +187,9 @@ int main(int argc, char *argv[])
         if(n < 0)
             error("Error sending packet");
         else
-            cout << "Packet sent:" << endl;
+            cout << endl << "Packet sent:" << endl;
         pack->printContents();
+
 
         bzero(serialPacket, sizeof(serialPacket));
         delete pack;

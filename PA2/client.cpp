@@ -59,6 +59,7 @@ int main(int argc, char *argv[])
     struct hostent *server;
     socklen_t recvlen;
     char buffer[32];
+    bool eot_not_sent = true;
 
     FILE *filep;        //given by command line argument
     FILE *seqnum_log;   //"seqnum.log" - log the packet sequence number
@@ -87,8 +88,7 @@ int main(int argc, char *argv[])
     
     /*          GBN functionality vars      */
     int window_size = 8;
-    char packArr[window_size+1][256];
-    int max_seqnum;
+    char packArr[window_size + 1][256];
     int base_seqnum;
 
     /*          setup file logging          */
@@ -150,91 +150,97 @@ int main(int argc, char *argv[])
     bzero(serialPacket, sizeof(serialPacket));
     seqnum = 0;
     base_seqnum = 0;
-    window_size = 8;
-    max_seqnum = window_size - 1;
+    window_size = 7;
+    int inFlightPackets = 0;
 
     printf("Preparing packets to send...\n");
 
-    while(pack->getType() != PACKET_EOT_SERV2CLI)
+    while(eot_not_sent)
     {
-        while (fgets(buffer, 31, filep) && (seqnum%8) <= window_size){
-   
+        while(inFlightPackets < window_size)
+        {
             //prepare packet if there's data
-            delete pack;
-            if(strlen(buffer) > 0)
+            if(fgets(buffer, 31, filep) != NULL)
             {
-                pack = new packet(PACKET_DATA, seqnum%8, sizeof(buffer), buffer);
+                delete pack;
+                pack = new packet(PACKET_DATA, seqnum, sizeof(buffer), buffer);
 
             }
-            else
+            //send EOT
+            else if(inFlightPackets == 0)
             {
-                pack = new packet(PACKET_EOT_CLI2SERV, seqnum%8, 0, NULL);
+                delete pack;
+                pack = new packet(PACKET_EOT_CLI2SERV, seqnum, 0, NULL);
+                eot_not_sent = false;
             }
-            cout<<"Populating packArr..."<<endl;
-            bzero(packArr[seqnum%8], sizeof(packArr[seqnum%8]));
-            pack->serialize(packArr[seqnum%8]);
+
+            //clear old contents, insert new serialized packet into array
+            bzero(packArr[seqnum], sizeof(packArr[seqnum]));
+            pack->serialize(packArr[seqnum]);
+            
             //send packet
-            n = sendto(sendSock, packArr[seqnum%8], sizeof(packArr[seqnum%8]), 0, (struct sockaddr*)&send_serv_addr, sizeof(send_serv_addr));
+            n = sendto(sendSock, packArr[seqnum], sizeof(packArr[seqnum]), 0, (struct sockaddr*)&send_serv_addr, sizeof(send_serv_addr));
             if(n < 0)
                 error("Error sending packet");
             else
                 cout << "Packet sent:" << endl;
+            
             pack->printContents();
-            fprintf(seqnum_log,"%d\n", seqnum%8);
-            seqnum++;
+            fprintf(seqnum_log,"%d\n", seqnum);
+            seqnum = (seqnum + 1) % 8;
+            inFlightPackets++;
+            cout << "In-flight packets (after sending): " << inFlightPackets << endl << endl;
         }
 
         bzero(serialPacket, sizeof(serialPacket));
 
         //wait for Ack
-        cout<<"Waiting to receive..."<<endl<<endl; 
+        cout << "Waiting to receive..." << endl << endl; 
         n = recvfrom(recvSock, serialPacket, sizeof(serialPacket), 0, NULL, NULL);
-        if (errno == EAGAIN){
-            for (int i = base_seqnum; i != seqnum%8; ((i+1)%8))
+        if(errno == EAGAIN)
+        {
+            cout << "TIMEOUT" << endl << endl;
+
+            for (int i = base_seqnum; i != seqnum; (i + 1) % 8)
             {
-                cout<<"Resending packet: "<< i << endl;
+                cout << "Resending packet: " << i << endl;
                 n = sendto(sendSock, packArr[i], sizeof(packArr[i]), 0, (struct sockaddr*)&send_serv_addr, sizeof(send_serv_addr));
                 if(n < 0)
                     error("Error sending packet");
                 else
                     cout << "Packet resent:" << endl;
                 pack->printContents();
-                fprintf(seqnum_log,"%d\n", seqnum%8);
+                fprintf(seqnum_log,"%d\n", seqnum);
             }
         }
 
-        if(n < 0)
-            error("Error receiving packet");
         else
-            cout << "Packet received:" << endl;
-
-        pack->deserialize(serialPacket);
-        
-        //Hannah started shit right here
-        if (pack->getSeqNum() == base_seqnum)
         {
-            base_seqnum++;
-        } 
-        else if (pack->getSeqNum() < base_seqnum)
-        {
-            for (int i = base_seqnum; i != seqnum%8; i++)
+            pack->deserialize(serialPacket);
+            
+            if(pack->getType() == PACKET_EOT_SERV2CLI)
             {
-                cout<<"Resending packet: "<< i << endl;
-                n = sendto(sendSock, packArr[i], sizeof(packArr[i]), 0, (struct sockaddr*)&send_serv_addr, sizeof(send_serv_addr));
-                if(n < 0)
-                    error("Error sending packet");
-                else
-                    cout << "Packet resent:" << endl;
-                pack->printContents();
-                fprintf(seqnum_log,"%d\n", seqnum%8);
-                seqnum = (seqnum + 1) % 8;
-
+                cout << "PACKET_EOT_SERV2CLI" << endl;
             }
+            if (pack->getSeqNum() == base_seqnum)
+            {
+                base_seqnum = (base_seqnum + 1) % 8;
+                inFlightPackets--;
+                cout << "In-flight packets (after receiving) " << inFlightPackets << endl << endl;
+            } 
+            else
+            {
+                cout << "SERVER REQUESTED PACKET " << pack->getSeqNum() << endl;
+                fprintf(seqnum_log,"%d\n", seqnum);
+                base_seqnum = pack->getSeqNum();
+            }
+
+            fprintf(ack_log, "%d\n", pack->getSeqNum());
+            cout << "Packet received: " << endl;
+            pack->printContents();
         }
-        fprintf(ack_log, "%d\n", pack->getSeqNum());
-        pack->printContents();
-
-
+        
+        cout << "----------------------------------------\n\n";
         bzero(buffer, sizeof(buffer));
         bzero(serialPacket, sizeof(serialPacket));
     }
