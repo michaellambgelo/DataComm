@@ -1,11 +1,10 @@
 /*
 client.cpp
-LOOK AT ALL THIS RANDOM SHIT
-Author: Michael Lamb
-Date: 28.1.2016
+Authors: Michael Lamb (jml724), Hannah Church (hds109)
+Date: 12.3.2016
 Description: This program is a client which
-sends a file to a server. The server determines
-a random port on which to receive the file.
+sends a file to a server using go-back-n protocol
+to resend lost packets.
 */
 
 //includes for general use
@@ -59,21 +58,11 @@ int main(int argc, char *argv[])
     struct hostent *server;
     socklen_t recvlen;
     char buffer[32];
-    bool eot_not_sent = true;
+    bool eot_not_received = true;
 
     FILE *filep;        //given by command line argument
     FILE *seqnum_log;   //"seqnum.log" - log the packet sequence number
     FILE *ack_log;      //"ack.log" - log the received ACK sequence number
-    
-    //clock_t timer;
-    /* 
-        To get time, set timer
-            timer = clock();
-        Then, get the difference
-            timer = clock() - timer;
-        Note on converting timer to ms:
-            int msec = timer * 1000 / CLOCKS_PER_SEC; 
-    */
 
     /*          packet variables             */
     packet *pack = new packet(0,0,0,buffer);
@@ -87,7 +76,7 @@ int main(int argc, char *argv[])
     int recvFromEmulatorPort = atoi(argv[3]);
     
     /*          GBN functionality vars      */
-    int window_size = 8;
+    int window_size = 7;
     char packArr[window_size + 1][256];
     int base_seqnum;
 
@@ -135,11 +124,7 @@ int main(int argc, char *argv[])
     bcopy((char *)server->h_addr, (char *)&recv_serv_addr.sin_addr.s_addr, server->h_length);
     recv_serv_addr.sin_port = htons(recvFromEmulatorPort);
 
-    
-    // if (bind(sendSock, (struct sockaddr *) &send_serv_addr, sizeof(send_serv_addr)) < 0)
-    //     error("Error: unable to bind() sendSock()");
-    // printf("Ready to send on port %d\n",sendToEmulatorPort);
-
+    //bind recvSock
     if (bind(recvSock, (struct sockaddr *) &recv_serv_addr, sizeof(recv_serv_addr)) < 0)
         error("Error: unable to bind() recvSock");
     printf("Ready to receive on port %d\n",recvFromEmulatorPort);
@@ -155,7 +140,7 @@ int main(int argc, char *argv[])
 
     printf("Preparing packets to send...\n");
 
-    while(eot_not_sent)
+    while(eot_not_received)
     {
         while(inFlightPackets < window_size)
         {
@@ -165,31 +150,51 @@ int main(int argc, char *argv[])
                 delete pack;
                 pack = new packet(PACKET_DATA, seqnum, sizeof(buffer), buffer);
 
+                //clear old contents, insert new serialized packet into array
+                bzero(packArr[seqnum], sizeof(packArr[seqnum]));
+                pack->serialize(packArr[seqnum]);
+                
+                //send packet
+                n = sendto(sendSock, packArr[seqnum], sizeof(packArr[seqnum]), 0, (struct sockaddr*)&send_serv_addr, sizeof(send_serv_addr));
+                if(n < 0)
+                    error("Error sending packet");
+                else
+                    cout << "Packet sent:" << endl;
+
+                pack->printContents();
+                fprintf(seqnum_log,"%d\n", seqnum);
+                seqnum = (seqnum + 1) % 8;
+                inFlightPackets++;
+                cout << "In-flight packets (after sending): " << inFlightPackets << endl << endl;
             }
             //send EOT
             else if(inFlightPackets == 0)
             {
                 delete pack;
                 pack = new packet(PACKET_EOT_CLI2SERV, seqnum, 0, NULL);
-                eot_not_sent = false;
+                //clear old contents, insert new serialized packet into array
+                bzero(packArr[seqnum], sizeof(packArr[seqnum]));
+                pack->serialize(packArr[seqnum]);
+                
+                //send packet
+                n = sendto(sendSock, packArr[seqnum], sizeof(packArr[seqnum]), 0, (struct sockaddr*)&send_serv_addr, sizeof(send_serv_addr));
+                if(n < 0)
+                    error("Error sending packet");
+                else
+                    cout << "Packet sent:" << endl;
+                
+                pack->printContents();
+                fprintf(seqnum_log,"%d\n", seqnum);
+                seqnum = (seqnum + 1) % 8;
+                inFlightPackets++;
+                cout << "In-flight packets (after sending): " << inFlightPackets << endl << endl;
+            }
+            else
+            {
+                cout << "In-flight packets (no data sent): " << inFlightPackets << endl << endl;
+                break;
             }
 
-            //clear old contents, insert new serialized packet into array
-            bzero(packArr[seqnum], sizeof(packArr[seqnum]));
-            pack->serialize(packArr[seqnum]);
-            
-            //send packet
-            n = sendto(sendSock, packArr[seqnum], sizeof(packArr[seqnum]), 0, (struct sockaddr*)&send_serv_addr, sizeof(send_serv_addr));
-            if(n < 0)
-                error("Error sending packet");
-            else
-                cout << "Packet sent:" << endl;
-            
-            pack->printContents();
-            fprintf(seqnum_log,"%d\n", seqnum);
-            seqnum = (seqnum + 1) % 8;
-            inFlightPackets++;
-            cout << "In-flight packets (after sending): " << inFlightPackets << endl << endl;
         }
 
         bzero(serialPacket, sizeof(serialPacket));
@@ -199,21 +204,21 @@ int main(int argc, char *argv[])
         n = recvfrom(recvSock, serialPacket, sizeof(serialPacket), 0, NULL, NULL);
         if(errno == EAGAIN)
         {
-            cout << "TIMEOUT" << endl << endl;
+            cout << "Server timed out..." << endl << endl;
 
-            for (int i = base_seqnum; i != seqnum; (i + 1) % 8)
+            for (int i = base_seqnum; i != seqnum; i = (i + 1) % 8)
             {
-                cout << "Resending packet: " << i << endl;
+                cout << "Resending packet: " << i << " to seqnum: " << seqnum << endl;
                 n = sendto(sendSock, packArr[i], sizeof(packArr[i]), 0, (struct sockaddr*)&send_serv_addr, sizeof(send_serv_addr));
                 if(n < 0)
                     error("Error sending packet");
                 else
                     cout << "Packet resent:" << endl;
-                pack->printContents();
-                fprintf(seqnum_log,"%d\n", seqnum);
+                cout << "Serial packet sent: " << packArr[i] << endl << endl;
+                fprintf(seqnum_log,"%d\n", i);
             }
+            errno = 0;
         }
-
         else
         {
             pack->deserialize(serialPacket);
@@ -221,18 +226,19 @@ int main(int argc, char *argv[])
             if(pack->getType() == PACKET_EOT_SERV2CLI)
             {
                 cout << "PACKET_EOT_SERV2CLI" << endl;
+                eot_not_received = false;
             }
             if (pack->getSeqNum() == base_seqnum)
             {
-                base_seqnum = (base_seqnum + 1) % 8;
+                base_seqnum = (pack->getSeqNum() + 1) % 8;
                 inFlightPackets--;
                 cout << "In-flight packets (after receiving) " << inFlightPackets << endl << endl;
             } 
             else
             {
-                cout << "SERVER REQUESTED PACKET " << pack->getSeqNum() << endl;
+                cout << "SERVER REQUESTED PACKET " << (pack->getSeqNum() + 1) % 8 << endl;
                 fprintf(seqnum_log,"%d\n", seqnum);
-                base_seqnum = pack->getSeqNum();
+                //base_seqnum = (pack->getSeqNum() + 1) % 8;
             }
 
             fprintf(ack_log, "%d\n", pack->getSeqNum());
@@ -245,6 +251,7 @@ int main(int argc, char *argv[])
         bzero(serialPacket, sizeof(serialPacket));
     }
 
+    cout << "End of transmission" << endl;
     //cleanup
     fclose(filep);
     fclose(seqnum_log);

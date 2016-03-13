@@ -75,7 +75,6 @@ int main(int argc, char *argv[])
 
     struct sockaddr_in  send_cli_addr, 
                         recv_cli_addr;
-    char buffer[32];
 
     FILE *filep;        //command line argument, write received payloads
     FILE *arrival_log;  //"arrival.log" - log sequence number of packets
@@ -130,16 +129,17 @@ int main(int argc, char *argv[])
         printf("Ready to receive on port %d\n",recvFromEmulatorPort);
 
     //clear c-strings and setup packet variables
-    bzero(buffer, sizeof(buffer));
     bzero(data, sizeof(data));
     bzero(serialPacket, sizeof(serialPacket));
     packet_seqnum;
     expected_seqnum = 0;
-    last_seqnum = 0;
+    last_seqnum = -1;
 
 
     do
     {
+        cout << "----------------------------------\n\n";
+        cout << "Waiting to receive... " << endl << endl;
         n = recvfrom(recvSock, serialPacket, sizeof(serialPacket), 0, NULL, NULL);
         if(n < 0) 
             error("Error receiving packet"); 
@@ -177,11 +177,12 @@ int main(int argc, char *argv[])
         }
         else if(type == PACKET_EOT_CLI2SERV)
         {
-            cout << "SENDING EOT MUTHAFUCKA" << endl;
             delete pack;
             pack = new packet(PACKET_EOT_SERV2CLI, packet_seqnum, 0, NULL);
             pack->serialize(serialPacket);
         }
+
+        fprintf(arrival_log,"%d\n",pack->getSeqNum());
 
         n = sendto(sendSock, serialPacket, strlen(serialPacket), 0, (struct sockaddr*)&send_cli_addr, sizeof(send_cli_addr));
         if(n < 0)
